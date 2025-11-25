@@ -5,7 +5,10 @@
         <Company>深圳市龙猫智能科技有限公司</Company>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
-        <!-- 版本号通过外部参数传入 -->
-        <Version>$PackageVersion</Version>
+        <!-- 如果外部通过 -p:PackageVersion=1.2.3 传入版本，则使用它；否则不覆盖 Version（或可设为默认） -->
+        <Version Condition="'$(PackageVersion)' != ''">$(PackageVersion)</Version>
+
+        <!-- 可选：同时设置 PackageVersion（有助于 NuGet/pack 行为更明确） -->
+        <PackageVersion Condition="'$(PackageVersion)' != ''">$(PackageVersion)</PackageVersion>
     </PropertyGroup>
 </Project>
