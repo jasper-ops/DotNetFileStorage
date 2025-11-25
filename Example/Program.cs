@@ -17,23 +17,21 @@ class Program {
         // Can only be a relative path
         const string path = "2025/11/11/a.txt";
 
-        var services = new ServiceCollection();
-
-        services.AddFileStorage(builder => {
-            builder
-                .UseLocalFileStorageProvider(new LocalFileStorageOptions {
-                    BasePath = @"d:\"
-                })
-                .UseVolcengineOssStorage(new UseVolcengineOssStorageOptions {
-                    AccessKey = config["Volcengine:AccessKey"]!,
-                    SecretKey = config["Volcengine:SecretKey"]!,
-                    Bucket = config["Volcengine:BucketName"]!
-                });
-        });
-        var sp = services.BuildServiceProvider();
+        var sp = new ServiceCollection()
+            .AddFileStorage(builder => {
+                builder
+                    .UseLocalFileStorageProvider(new LocalFileStorageOptions {
+                        BasePath = @"d:\"
+                    })
+                    .UseVolcengineOssStorage(new UseVolcengineOssStorageOptions {
+                        AccessKey = config["Volcengine:AccessKey"]!,
+                        SecretKey = config["Volcengine:SecretKey"]!,
+                        Bucket = config["Volcengine:BucketName"]!
+                    });
+            })
+            .BuildServiceProvider();
 
         var fileStorage = sp.GetRequiredService<IFileStorageProvider>();
-
 
         // Write
         var text = "Hello World"u8.ToArray();
@@ -41,11 +39,10 @@ class Program {
         ms.Write(text);
         await fileStorage.SaveAsync(path, ms);
 
-
         // Read(untile read by a Provider in its mounted order, or until a `FileNotFoundException` is thrown)
         using var reader = new StreamReader(await fileStorage.GetAsync(path));
         var content = await reader.ReadToEndAsync();
-        
+
         Console.WriteLine("读取到的内容： " + content);
     }
 }
