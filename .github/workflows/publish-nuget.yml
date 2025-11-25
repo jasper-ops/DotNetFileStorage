@@ -27,12 +27,22 @@ jobs:
         with:
           dotnet-version: '6.0.x'
 
-      - name: Extract tag name
+      - name: Extract tag name and package version
         run: |
-          # GITHUB_REF like refs/tags/v1.2.3 -> 提取 v1.2.3
-          echo "FULL_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          # 去掉可选的前导 v，得到例如 1.2.3
-          echo "PACKAGE_VERSION=${FULL_TAG#v}" >> $GITHUB_ENV
+          FULL_TAG=${GITHUB_REF#refs/tags/}
+          PACKAGE_VERSION=${FULL_TAG#v}
+          echo "FULL_TAG=$FULL_TAG" >> $GITHUB_ENV
+          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
+          echo "Detected tag: $FULL_TAG -> package version: $PACKAGE_VERSION"
+        shell: bash
+
+      - name: Verify version
+        run: |
+          if [ -z "$PACKAGE_VERSION" ]; then
+            echo "ERROR: PACKAGE_VERSION is empty. Tag must be like vX.Y.Z (e.g. v1.2.3)."
+            exit 1
+          fi
+          echo "Using package version: $PACKAGE_VERSION"
         shell: bash
 
       - name: Restore dependencies
