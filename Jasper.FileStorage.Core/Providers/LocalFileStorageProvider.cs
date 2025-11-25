@@ -52,7 +52,7 @@ public class LocalFileStorageProvider(LocalFileStorageOptions options) : IFileSt
     }
 
     public Task MoveAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default) {
-        File.Move(GetSafeFullPath(sourcePath), GetSafeFullPath(destinationPath), true);
+        File.Move(GetSafeFullPath(sourcePath), GetSafeFullPath(destinationPath));
 
         return Task.CompletedTask;
     }
