@@ -2,6 +2,7 @@
 
 on:
   push:
+    # 仅对以 v 开头的 tag 触发（例如 v1.2.3）
     tags:
       - 'v*'
 
@@ -51,34 +52,60 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
-      - name: Pack all project files
+      - name: Pack packable project files only
         run: |
-          set -e
+          set -euo pipefail
           echo "Packing projects with version: $PACKAGE_VERSION"
           mkdir -p nupkgs
-          files_found=false
+          files_tried=0
+          files_packed=0
+
+          # 遍历仓库中的每个 csproj
           for proj in $(git ls-files '*.csproj'); do
-            files_found=true
+            files_tried=$((files_tried + 1))
+            # 简单检查项目文件中是否显式将 IsPackable 设为 false（大小写不敏感，允许空白）
+            if grep -Eqi '<IsPackable>\s*false\s*</IsPackable>' "$proj"; then
+              echo "Skipping $proj (IsPackable=false)"
+              continue
+            fi
+
             echo "Packing $proj ..."
+            # 执行 pack；如果该项目在其他 props 中设置为不可打包，dotnet pack 可能不产生文件，但通常不会返回非0
             dotnet pack "$proj" --configuration Release --no-build -p:PackageVersion="$PACKAGE_VERSION" -o ./nupkgs
+            files_packed=$((files_packed + 1))
           done
-          if [ "$files_found" = "false" ]; then
+
+          if [ "$files_tried" -eq 0 ]; then
             echo "No .csproj files found to pack."
             exit 1
           fi
+
+          echo "Tried: $files_tried projects; attempted pack commands: $files_packed"
+          # 列出生成的包，供调试
+          ls -la nupkgs || true
         shell: bash
 
-      - name: Publish packages to nuget.org
+      - name: Publish packages to nuget.org (only if packages exist)
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          set -e
+          set -euo pipefail
           if [ -z "$NUGET_API_KEY" ]; then
             echo "Secret NUGET_API_KEY is not set. Abort."
             exit 1
           fi
-          echo "Pushing nupkgs/*.nupkg to nuget.org (skip duplicates)..."
-          for pkg in nupkgs/*.nupkg; do
+
+          # 启用 nullglob，这样当没有匹配时数组为空（否则 glob 会原样出现）
+          shopt -s nullglob
+          pkgs=(nupkgs/*.nupkg)
+
+          if [ ${#pkgs[@]} -eq 0 ]; then
+            echo "No packages were produced; nothing to push."
+            exit 0
+          fi
+
+          echo "Pushing ${#pkgs[@]} packages to nuget.org (skip duplicates)..."
+          for pkg in "${pkgs[@]}"; do
             echo "Pushing $pkg"
             dotnet nuget push "$pkg" -k "$NUGET_API_KEY" -s https://api.nuget.org/v3/index.json --skip-duplicate
           done

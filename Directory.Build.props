@@ -1,0 +1,11 @@
+<Project>
+    <PropertyGroup>
+        <!-- 公共元数据 -->
+        <Authors>Jasper</Authors>
+        <Company>深圳市龙猫智能科技有限公司</Company>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+        <!-- 版本号通过外部参数传入 -->
+        <Version>$PackageVersion</Version>
+    </PropertyGroup>
+</Project>
