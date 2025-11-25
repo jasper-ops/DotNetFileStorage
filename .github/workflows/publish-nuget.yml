@@ -1,0 +1,75 @@
+﻿name: Publish NuGet package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-nuget-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Extract tag name
+        run: |
+          # GITHUB_REF like refs/tags/v1.2.3 -> 提取 v1.2.3
+          echo "FULL_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          # 去掉可选的前导 v，得到例如 1.2.3
+          echo "PACKAGE_VERSION=${FULL_TAG#v}" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Pack all project files
+        run: |
+          set -e
+          echo "Packing projects with version: $PACKAGE_VERSION"
+          mkdir -p nupkgs
+          files_found=false
+          for proj in $(git ls-files '*.csproj'); do
+            files_found=true
+            echo "Packing $proj ..."
+            dotnet pack "$proj" --configuration Release --no-build -p:PackageVersion="$PACKAGE_VERSION" -o ./nupkgs
+          done
+          if [ "$files_found" = "false" ]; then
+            echo "No .csproj files found to pack."
+            exit 1
+          fi
+        shell: bash
+
+      - name: Publish packages to nuget.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -e
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "Secret NUGET_API_KEY is not set. Abort."
+            exit 1
+          fi
+          echo "Pushing nupkgs/*.nupkg to nuget.org (skip duplicates)..."
+          for pkg in nupkgs/*.nupkg; do
+            echo "Pushing $pkg"
+            dotnet nuget push "$pkg" -k "$NUGET_API_KEY" -s https://api.nuget.org/v3/index.json --skip-duplicate
+          done
+        shell: bash
